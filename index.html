@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spanish Verb Drill</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<style>
+  html, body { margin: 0; padding: 0; }
+  * { box-sizing: border-box; }
+  @media (max-width: 480px) {
+    .filter-btn { padding: 8px 13px !important; font-size: 14px !important; }
+    .action-btn { padding: 12px 18px !important; }
+    .panel-tab { padding: 8px 15px !important; }
+    .theme-toggle { width: 38px !important; height: 38px !important; }
+  }
+  @media (max-width: 380px) {
+    .stat-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── Data ────────────────────────────────────────────────────────────────────
+
+const VC = { ser:"#1D9E75",estar:"#378ADD",ir:"#7F77DD",tener:"#f59e0b",hacer:"#ef4444",poder:"#22c55e",querer:"#ec4899",saber:"#14b8a6",venir:"#f97316",decir:"#8b5cf6" };
+const TC = { present:"#1D9E75",preterite:"#f59e0b",imperfect:"#7F77DD",future:"#378ADD",conditional:"#e11d48" };
+const TENSES = ["present","preterite","imperfect","future","conditional"];
+const TL = { present:"Present",preterite:"Preterite",imperfect:"Imperfect",future:"Future",conditional:"Conditional" };
+const SUBJS = ["yo","tú","él","nosotros","ustedes"];
+const TIMER_SECONDS = 15;
+const VERB_KEYS = ["ser","estar","ir","tener","hacer","poder","querer","saber","venir","decir"];
+
+const VERBS = {
+  ser:{ en:"to be (permanent)", note:"SER/IR share identical preterite forms (fui, fuiste…). Context tells you which. Imperfect era/eras — one of only 3 irregular imperfect verbs. Conditional: sería (regular -ía endings on full infinitive).",
+    present:{yo:"soy",tú:"eres",él:"es",nosotros:"somos",ustedes:"son"},
+    preterite:{yo:"fui",tú:"fuiste",él:"fue",nosotros:"fuimos",ustedes:"fueron"},
+    imperfect:{yo:"era",tú:"eras",él:"era",nosotros:"éramos",ustedes:"eran"},
+    future:{yo:"seré",tú:"serás",él:"será",nosotros:"seremos",ustedes:"serán"},
+    conditional:{yo:"sería",tú:"serías",él:"sería",nosotros:"seríamos",ustedes:"serían"}},
+  estar:{ en:"to be (temporary/state)", note:"Preterite stem: estuv- (UV group). No accent on estuvo/estuve — common mistake. Imperfect is regular. Conditional is regular: estaría, estarías…",
+    present:{yo:"estoy",tú:"estás",él:"está",nosotros:"estamos",ustedes:"están"},
+    preterite:{yo:"estuve",tú:"estuviste",él:"estuvo",nosotros:"estuvimos",ustedes:"estuvieron"},
+    imperfect:{yo:"estaba",tú:"estabas",él:"estaba",nosotros:"estábamos",ustedes:"estaban"},
+    future:{yo:"estaré",tú:"estarás",él:"estará",nosotros:"estaremos",ustedes:"estarán"},
+    conditional:{yo:"estaría",tú:"estarías",él:"estaría",nosotros:"estaríamos",ustedes:"estarían"}},
+  ir:{ en:"to go", note:"IR/SER share all preterite forms. Imperfect iba/ibas — one of only 3 irregular imperfects (note accent: íbamos). Conditional is regular: iría, irías…",
+    present:{yo:"voy",tú:"vas",él:"va",nosotros:"vamos",ustedes:"van"},
+    preterite:{yo:"fui",tú:"fuiste",él:"fue",nosotros:"fuimos",ustedes:"fueron"},
+    imperfect:{yo:"iba",tú:"ibas",él:"iba",nosotros:"íbamos",ustedes:"iban"},
+    future:{yo:"iré",tú:"irás",él:"irá",nosotros:"iremos",ustedes:"irán"},
+    conditional:{yo:"iría",tú:"irías",él:"iría",nosotros:"iríamos",ustedes:"irían"}},
+  tener:{ en:"to have / to hold", note:"Yo present: tengo (g insertion). Preterite: tuv- (UV group). Future + conditional share the stem tendr-: tendré / tendría. Tener que + inf = to have to.",
+    present:{yo:"tengo",tú:"tienes",él:"tiene",nosotros:"tenemos",ustedes:"tienen"},
+    preterite:{yo:"tuve",tú:"tuviste",él:"tuvo",nosotros:"tuvimos",ustedes:"tuvieron"},
+    imperfect:{yo:"tenía",tú:"tenías",él:"tenía",nosotros:"teníamos",ustedes:"tenían"},
+    future:{yo:"tendré",tú:"tendrás",él:"tendrá",nosotros:"tendremos",ustedes:"tendrán"},
+    conditional:{yo:"tendría",tú:"tendrías",él:"tendría",nosotros:"tendríamos",ustedes:"tendrían"}},
+  hacer:{ en:"to do / to make", note:"Yo present: hago. Preterite él: hizo (c→z). Future + conditional share stem har-: haré / haría. Used in weather (hace calor) and time (hace dos años).",
+    present:{yo:"hago",tú:"haces",él:"hace",nosotros:"hacemos",ustedes:"hacen"},
+    preterite:{yo:"hice",tú:"hiciste",él:"hizo",nosotros:"hicimos",ustedes:"hicieron"},
+    imperfect:{yo:"hacía",tú:"hacías",él:"hacía",nosotros:"hacíamos",ustedes:"hacían"},
+    future:{yo:"haré",tú:"harás",él:"hará",nosotros:"haremos",ustedes:"harán"},
+    conditional:{yo:"haría",tú:"harías",él:"haría",nosotros:"haríamos",ustedes:"harían"}},
+  poder:{ en:"to be able to / can", note:"Present o→ue stem change (except nosotros). Preterite: pud- (U group). Future + conditional: podr-: podré / podría. ¿Podrías ayudarme? — essential for polite requests.",
+    present:{yo:"puedo",tú:"puedes",él:"puede",nosotros:"podemos",ustedes:"pueden"},
+    preterite:{yo:"pude",tú:"pudiste",él:"pudo",nosotros:"pudimos",ustedes:"pudieron"},
+    imperfect:{yo:"podía",tú:"podías",él:"podía",nosotros:"podíamos",ustedes:"podían"},
+    future:{yo:"podré",tú:"podrás",él:"podrá",nosotros:"podremos",ustedes:"podrán"},
+    conditional:{yo:"podría",tú:"podrías",él:"podría",nosotros:"podríamos",ustedes:"podrían"}},
+  querer:{ en:"to want / to love", note:"Present e→ie (except nosotros). Preterite: quis- (I group). Future + conditional: querr- (double r): querré / querría. Querría ir a México — I'd love to go.",
+    present:{yo:"quiero",tú:"quieres",él:"quiere",nosotros:"queremos",ustedes:"quieren"},
+    preterite:{yo:"quise",tú:"quisiste",él:"quiso",nosotros:"quisimos",ustedes:"quisieron"},
+    imperfect:{yo:"quería",tú:"querías",él:"quería",nosotros:"queríamos",ustedes:"querían"},
+    future:{yo:"querré",tú:"querrás",él:"querrá",nosotros:"querremos",ustedes:"querrán"},
+    conditional:{yo:"querría",tú:"querrías",él:"querría",nosotros:"querríamos",ustedes:"querrían"}},
+  saber:{ en:"to know (facts/how)", note:"Yo present: sé (one letter + accent). Preterite: sup- (U group). Supe = I found out. Future + conditional: sabr-: sabré / sabría. ¿Sabrías cómo llegar? — very natural.",
+    present:{yo:"sé",tú:"sabes",él:"sabe",nosotros:"sabemos",ustedes:"saben"},
+    preterite:{yo:"supe",tú:"supiste",él:"supo",nosotros:"supimos",ustedes:"supieron"},
+    imperfect:{yo:"sabía",tú:"sabías",él:"sabía",nosotros:"sabíamos",ustedes:"sabían"},
+    future:{yo:"sabré",tú:"sabrás",él:"sabrá",nosotros:"sabremos",ustedes:"sabrán"},
+    conditional:{yo:"sabría",tú:"sabrías",él:"sabría",nosotros:"sabríamos",ustedes:"sabrían"}},
+  venir:{ en:"to come", note:"Yo present: vengo. Preterite: vin- (I group; no accent on vine/vino). Future + conditional: vendr-: vendré / vendría. ¿Vendrías a la fiesta? — extremely common.",
+    present:{yo:"vengo",tú:"vienes",él:"viene",nosotros:"venimos",ustedes:"vienen"},
+    preterite:{yo:"vine",tú:"viniste",él:"vino",nosotros:"vinimos",ustedes:"vinieron"},
+    imperfect:{yo:"venía",tú:"venías",él:"venía",nosotros:"veníamos",ustedes:"venían"},
+    future:{yo:"vendré",tú:"vendrás",él:"vendrá",nosotros:"vendremos",ustedes:"vendrán"},
+    conditional:{yo:"vendría",tú:"vendrías",él:"vendría",nosotros:"vendríamos",ustedes:"vendrían"}},
+  decir:{ en:"to say / to tell", note:"Yo present: digo. Preterite J group: dij- (dijeron NOT dijieron). Future + conditional: dir-: diré / diría. ¿Qué dirías tú? — key for hypotheticals.",
+    present:{yo:"digo",tú:"dices",él:"dice",nosotros:"decimos",ustedes:"dicen"},
+    preterite:{yo:"dije",tú:"dijiste",él:"dijo",nosotros:"dijimos",ustedes:"dijeron"},
+    imperfect:{yo:"decía",tú:"decías",él:"decía",nosotros:"decíamos",ustedes:"decían"},
+    future:{yo:"diré",tú:"dirás",él:"dirá",nosotros:"diremos",ustedes:"dirán"},
+    conditional:{yo:"diría",tú:"dirías",él:"diría",nosotros:"diríamos",ustedes:"dirían"}},
+};
+
+const PROMPTS = {
+  ser:{present:{yo:"¿Cómo te describes?",tú:"¿De dónde eres?",él:"Él _____ mi mejor amigo.",nosotros:"Nosotros _____ mexicanos.",ustedes:"¿Ustedes _____ hermanos?"},preterite:{yo:"La fiesta _____ genial.",tú:"¿ _____ tú el primero en llegar?",él:"_____ una noche increíble.",nosotros:"Nosotros _____ los ganadores.",ustedes:"Ustedes _____ muy amables."},imperfect:{yo:"De niño yo _____ muy tímido.",tú:"Tú _____ tan diferente antes.",él:"Él _____ muy alto de joven.",nosotros:"Nosotros _____ muy unidos.",ustedes:"Ustedes _____ muy buenos amigos."},future:{yo:"Algún día _____ famoso.",tú:"Tú _____ un gran médico.",él:"_____ una noche perfecta.",nosotros:"Nosotros _____ los mejores.",ustedes:"Ustedes _____ muy felices."},conditional:{yo:"En tu lugar, yo _____ más cuidadoso.",tú:"¿ _____ tú capaz de hacerlo?",él:"Él _____ un buen líder.",nosotros:"Nosotros _____ perfectos para el trabajo.",ustedes:"Ustedes _____ los mejores candidatos."}},
+  estar:{present:{yo:"Hoy yo _____ muy cansado.",tú:"¿Cómo _____ tú?",él:"El café _____ muy caliente.",nosotros:"Nosotros _____ en el mercado.",ustedes:"¿Dónde _____ ustedes ahora?"},preterite:{yo:"Ayer yo _____ en casa todo el día.",tú:"¿Dónde _____ tú anoche?",él:"Él _____ muy ocupado ayer.",nosotros:"Nosotros _____ en Oaxaca.",ustedes:"¿Ustedes _____ en la fiesta?"},imperfect:{yo:"Yo _____ esperando el camión.",tú:"¿ _____ tú bien cuando te llamé?",él:"Él _____ dormido cuando llegué.",nosotros:"Nosotros _____ muy cansados.",ustedes:"Ustedes _____ muy emocionados."},future:{yo:"Mañana _____ en Guadalajara.",tú:"¿Dónde _____ tú el sábado?",él:"Él _____ aquí a las ocho.",nosotros:"Nosotros _____ listos a las diez.",ustedes:"¿Ustedes _____ disponibles?"},conditional:{yo:"Sin el tráfico, ya _____ en casa.",tú:"¿Dónde _____ tú si pudieras vivir en cualquier lugar?",él:"Él _____ más tranquilo con más tiempo.",nosotros:"Nosotros _____ mejor preparados.",ustedes:"Ustedes _____ muy cómodos allá."}},
+  ir:{present:{yo:"Los domingos yo _____ al mercado.",tú:"¿A dónde _____ tú ahorita?",él:"Él _____ al trabajo en metro.",nosotros:"Nosotros _____ al partido esta noche.",ustedes:"¿Ustedes _____ a la fiesta?"},preterite:{yo:"Ayer yo _____ al médico.",tú:"¿ _____ tú a la reunión?",él:"Él _____ a Cancún el verano pasado.",nosotros:"Nosotros _____ al cine el viernes.",ustedes:"¿Ustedes _____ juntos?"},imperfect:{yo:"De niño, yo _____ al parque todos los días.",tú:"¿Tú _____ a esa escuela también?",él:"Él _____ al gimnasio cada mañana.",nosotros:"Nosotros _____ a la playa cada verano.",ustedes:"Ustedes siempre _____ juntos."},future:{yo:"El próximo mes _____ a Colombia.",tú:"¿ _____ tú con nosotros?",él:"Él _____ a hablar con el jefe.",nosotros:"Nosotros _____ a Puebla este fin de semana.",ustedes:"¿Ustedes _____ a la conferencia?"},conditional:{yo:"Yo _____ a México si tuviera tiempo.",tú:"¿ _____ tú con nosotros si pudieras?",él:"Él _____ con gusto pero trabaja.",nosotros:"Nosotros _____ más seguido si viviéramos cerca.",ustedes:"¿Ustedes _____ a vivir al extranjero?"}},
+  tener:{present:{yo:"Yo _____ que trabajar mañana.",tú:"¿Cuántos años _____ tú?",él:"Él _____ mucha experiencia.",nosotros:"Nosotros _____ una reservación.",ustedes:"¿Ustedes _____ hambre?"},preterite:{yo:"Ayer yo _____ mucho trabajo.",tú:"¿ _____ tú tiempo para llamarme?",él:"Él _____ que cancelar la cita.",nosotros:"Nosotros _____ que esperar dos horas.",ustedes:"¿Ustedes _____ problemas?"},imperfect:{yo:"Cuando era niño, yo _____ un perro.",tú:"Tú _____ mucho talento de joven.",él:"Él _____ miedo de la oscuridad.",nosotros:"Nosotros _____ poco dinero.",ustedes:"Ustedes _____ razón."},future:{yo:"Yo _____ más tiempo libre pronto.",tú:"Tú _____ que estudiar mucho.",él:"Él _____ que tomar una decisión.",nosotros:"Nosotros _____ noticias pronto.",ustedes:"Ustedes _____ que esperar."},conditional:{yo:"Yo _____ más paciencia si durmiera bien.",tú:"¿ _____ tú miedo en esa situación?",él:"Él _____ que renunciar si eso pasara.",nosotros:"Nosotros _____ más tiempo sin tanto tráfico.",ustedes:"¿Ustedes _____ la misma reacción?"}},
+  hacer:{present:{yo:"¿Qué _____ yo con tanto tiempo?",tú:"¿Qué _____ tú los fines de semana?",él:"Él _____ ejercicio todos los días.",nosotros:"Nosotros _____ la comida juntos.",ustedes:"¿Qué _____ ustedes esta noche?"},preterite:{yo:"Ayer yo _____ la tarea por la noche.",tú:"¿Qué _____ tú ayer?",él:"Él lo _____ todo solo.",nosotros:"Nosotros _____ una fiesta la semana pasada.",ustedes:"¿Qué _____ ustedes el fin de semana?"},imperfect:{yo:"Yo _____ deporte todos los días.",tú:"¿Qué _____ tú cuando te llamé?",él:"Él siempre _____ lo mismo.",nosotros:"Nosotros _____ todo juntos.",ustedes:"Ustedes _____ mucho ruido."},future:{yo:"Yo _____ todo lo posible.",tú:"¿Qué _____ tú si pudieras?",él:"Él _____ lo necesario.",nosotros:"Nosotros _____ las reservaciones.",ustedes:"¿Qué _____ ustedes?"},conditional:{yo:"Yo _____ lo mismo en tu lugar.",tú:"¿Qué _____ tú con un millón de pesos?",él:"Él _____ cualquier cosa por su familia.",nosotros:"Nosotros _____ lo mismo otra vez.",ustedes:"¿Qué _____ ustedes si pudieran?"}},
+  poder:{present:{yo:"No _____ creerlo.",tú:"¿ _____ tú ayudarme?",él:"Él no _____ venir hoy.",nosotros:"Nosotros _____ salir más temprano.",ustedes:"¿Ustedes _____ quedarse?"},preterite:{yo:"No _____ abrir la botella.",tú:"¿ _____ tú hablar con él?",él:"Él no _____ llegar a tiempo.",nosotros:"No _____ terminar el proyecto.",ustedes:"¿Ustedes _____ resolverlo?"},imperfect:{yo:"De joven, yo _____ correr muy rápido.",tú:"Antes tú _____ hacerlo fácilmente.",él:"Él no _____ dormir bien.",nosotros:"Nosotros _____ hablar por horas.",ustedes:"Ustedes _____ trabajar mucho."},future:{yo:"Mañana _____ ayudarte.",tú:"¿ _____ tú venir el martes?",él:"Él _____ salir más temprano.",nosotros:"Nosotros _____ salir antes.",ustedes:"¿Ustedes _____ quedarse?"},conditional:{yo:"¿ _____ yo pedirte un favor?",tú:"¿ _____ tú explicármelo?",él:"Él _____ ayudarnos si quisiera.",nosotros:"Nosotros _____ terminar antes si empezamos ya.",ustedes:"¿Ustedes _____ venir el viernes?"}},
+  querer:{present:{yo:"Yo _____ aprender español.",tú:"¿ _____ tú un café?",él:"Él _____ hablar contigo.",nosotros:"Nosotros _____ ir al concierto.",ustedes:"¿Ustedes _____ comer algo?"},preterite:{yo:"Yo _____ llamarte pero no pude.",tú:"¿ _____ tú venir y no pudiste?",él:"Él no _____ escuchar los consejos.",nosotros:"Nosotros _____ ayudar pero era tarde.",ustedes:"¿Ustedes _____ participar?"},imperfect:{yo:"Yo _____ ser astronauta de niño.",tú:"Tú siempre _____ tener un gato.",él:"Él _____ cambiar de trabajo.",nosotros:"Nosotros _____ mudarnos a la ciudad.",ustedes:"Ustedes siempre _____ más."},future:{yo:"Siempre _____ aprender más.",tú:"¿ _____ tú venir con nosotros?",él:"Él _____ hablar mañana.",nosotros:"Nosotros _____ saberlo pronto.",ustedes:"¿Ustedes _____ participar?"},conditional:{yo:"Yo _____ vivir en México si pudiera.",tú:"¿ _____ tú intentarlo de nuevo?",él:"Él _____ cambiar muchas cosas.",nosotros:"Nosotros _____ ir pero no tenemos tiempo.",ustedes:"¿ _____ ustedes repetirlo?"}},
+  saber:{present:{yo:"Yo _____ hablar español un poco.",tú:"¿ _____ tú cocinar?",él:"Él _____ la respuesta.",nosotros:"Nosotros no _____ qué pasó.",ustedes:"¿Ustedes _____ dónde está?"},preterite:{yo:"Yo _____ la verdad ayer.",tú:"¿ _____ tú la noticia?",él:"Él _____ que ganó hasta hoy.",nosotros:"Nosotros _____ la verdad después.",ustedes:"¿Cuándo _____ ustedes?"},imperfect:{yo:"Yo no _____ que eras tú.",tú:"¿ _____ tú que iba a pasar esto?",él:"Él _____ mucho sobre historia.",nosotros:"Nosotros _____ que era difícil.",ustedes:"Ustedes _____ la respuesta."},future:{yo:"Pronto _____ si pasé el examen.",tú:"Tú _____ la verdad mañana.",él:"Él _____ los resultados el lunes.",nosotros:"Nosotros _____ la respuesta.",ustedes:"Ustedes _____ todo pronto."},conditional:{yo:"Yo _____ qué hacer en esa situación.",tú:"¿ _____ tú cómo llegar allá?",él:"Él _____ la respuesta si estudiara más.",nosotros:"Nosotros _____ manejarlo mejor.",ustedes:"¿Ustedes _____ qué decirle?"}},
+  venir:{present:{yo:"Yo _____ del trabajo ahora.",tú:"¿A qué hora _____ tú?",él:"Él _____ todos los martes.",nosotros:"Nosotros _____ a la reunión juntos.",ustedes:"¿Ustedes _____ al partido?"},preterite:{yo:"Ayer yo _____ directamente de la oficina.",tú:"¿Por qué no _____ tú?",él:"Él no _____ a la fiesta.",nosotros:"Nosotros _____ en avión.",ustedes:"¿Ustedes _____ juntos?"},imperfect:{yo:"Yo _____ a este café todos los días.",tú:"Tú siempre _____ a visitarme.",él:"Él _____ muy seguido.",nosotros:"Nosotros _____ aquí cada semana.",ustedes:"Ustedes _____ muy seguido."},future:{yo:"Yo _____ contigo si puedo.",tú:"¿ _____ tú mañana?",él:"Él _____ en el vuelo de la tarde.",nosotros:"Nosotros _____ el próximo fin de semana.",ustedes:"¿Ustedes _____ a la conferencia?"},conditional:{yo:"Yo _____ si no tuviera tanto trabajo.",tú:"¿ _____ tú a vivir a México?",él:"Él _____ con gusto si lo invitaran.",nosotros:"Nosotros _____ más seguido si pudiéramos.",ustedes:"¿ _____ ustedes a la fiesta el sábado?"}},
+  decir:{present:{yo:"Yo le _____ la verdad siempre.",tú:"¿Qué _____ tú cuando te pregunten?",él:"Él _____ que no puede venir.",nosotros:"Nosotros _____ que es buena idea.",ustedes:"¿Qué _____ ustedes?"},preterite:{yo:"Yo le _____ que sí.",tú:"¿Qué _____ tú?",él:"Él me _____ que llegaba tarde.",nosotros:"Nosotros _____ que era imposible.",ustedes:"¿Qué _____ ustedes?"},imperfect:{yo:"Yo siempre _____ la verdad.",tú:"Tú _____ que ibas a cambiar.",él:"Él _____ que sí pero no cumplió.",nosotros:"Nosotros _____ que era tarde.",ustedes:"Ustedes _____ lo mismo siempre."},future:{yo:"Yo le _____ lo que pienso.",tú:"¿Qué _____ tú?",él:"Él _____ lo que sea necesario.",nosotros:"Nosotros _____ la verdad.",ustedes:"¿Ustedes _____ algo?"},conditional:{yo:"Yo le _____ la verdad en tu lugar.",tú:"¿Qué _____ tú si te preguntaran?",él:"Él _____ que sí, pero no lo haría.",nosotros:"Nosotros _____ lo mismo.",ustedes:"¿Qué _____ ustedes en esa situación?"}},
+};
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+
+const THEMES = {
+  dark: {
+    bg: "#0f0f13", headerBg: "#1a1a22", text: "#f0f0f4", textMuted: "#8888a0",
+    borderColor: "rgba(255,255,255,0.08)", cardBg: "rgba(255,255,255,0.04)",
+    statBg: "rgba(255,255,255,0.05)", inputBg: "rgba(255,255,255,0.05)", inputBorder: "rgba(255,255,255,0.15)",
+    filterInactiveBg: "rgba(80,80,100,0.3)", filterInactiveText: "#888",
+    tabInactiveBg: "rgba(80,80,100,0.4)", tabInactiveText: "#888",
+    actionBorder: "rgba(255,255,255,0.15)", resetBorder: "rgba(255,255,255,0.12)", rowBorder: "rgba(255,255,255,0.06)",
+    accent: "#1D9E75",
+    correctBg: "rgba(34,197,94,0.08)", correctBorder: "#22c55e", correctFeedbackBg: "rgba(34,197,94,0.12)", correctText: "#86efac",
+    wrongBg: "rgba(239,68,68,0.08)", wrongBorder: "#ef4444", wrongFeedbackBg: "rgba(239,68,68,0.12)", wrongText: "#fca5a5",
+    noteBg: "rgba(245,158,11,0.08)", noteBorder: "#f59e0b", noteText: "#fcd34d",
+    linkColor: "#818cf8", outlineText: "#ccc",
+  },
+  light: {
+    bg: "#f4f4f7", headerBg: "#ffffff", text: "#1c1c26", textMuted: "#6b6b80",
+    borderColor: "rgba(0,0,0,0.09)", cardBg: "#ffffff",
+    statBg: "rgba(0,0,0,0.03)", inputBg: "#ffffff", inputBorder: "rgba(0,0,0,0.15)",
+    filterInactiveBg: "rgba(0,0,0,0.06)", filterInactiveText: "#6b6b80",
+    tabInactiveBg: "rgba(0,0,0,0.08)", tabInactiveText: "#6b6b80",
+    actionBorder: "rgba(0,0,0,0.15)", resetBorder: "rgba(0,0,0,0.14)", rowBorder: "rgba(0,0,0,0.08)",
+    accent: "#1D9E75",
+    correctBg: "rgba(34,197,94,0.08)", correctBorder: "#16a34a", correctFeedbackBg: "rgba(34,197,94,0.1)", correctText: "#15803d",
+    wrongBg: "rgba(239,68,68,0.07)", wrongBorder: "#dc2626", wrongFeedbackBg: "rgba(239,68,68,0.08)", wrongText: "#b91c1c",
+    noteBg: "rgba(245,158,11,0.1)", noteBorder: "#d97706", noteText: "#92400e",
+    linkColor: "#4f46e5", outlineText: "#444",
+  },
+};
+
+// ── Storage helpers (localStorage) ───────────────────────────────────────────
+
+function defSaved() {
+  const vs = {};
+  VERB_KEYS.forEach(v => { vs[v] = { correct: 0, wrong: 0 }; });
+  return {
+    theme: "dark", activeVerbs: [...VERB_KEYS], activeTenses: ["present","preterite"],
+    allTimeCorrect: 0, allTimeWrong: 0, sessions: 0, bestStreak: 0, verbStats: vs,
+    cellStats: {}, sessionHistory: [],
+    queueMode: true, mcMode: false, timerMode: false,
+  };
+}
+
+function cellKey(verb, tense) { return `${verb}|${tense}`; }
+function getCellStat(cellStats, verb, tense) { return cellStats[cellKey(verb, tense)] || { correct: 0, wrong: 0 }; }
+
+// Merge a raw saved-data object (from localStorage or the cloud) onto today's defaults,
+// so older/partial data never crashes newer code that expects fields it didn't have yet.
+function mergeSaved(raw) {
+  const base = defSaved();
+  const merged = { ...base, ...raw };
+  VERB_KEYS.forEach(v => { if (!merged.verbStats[v]) merged.verbStats[v] = { correct: 0, wrong: 0 }; });
+  return merged;
+}
+
+async function loadFromStorage() {
+  try {
+    const raw = window.localStorage.getItem("spanish-drill-v2");
+    if (raw) return mergeSaved(JSON.parse(raw));
+  } catch(e) {}
+  return defSaved();
+}
+
+async function saveToStorage(data) {
+  try { window.localStorage.setItem("spanish-drill-v2", JSON.stringify(data)); } catch(e) {}
+}
+
+// ── Auth + cloud sync (Supabase) ─────────────────────────────────────────────
+// Fill these in from your Supabase project (Project Settings → API). The anon key is
+// safe to expose client-side — Row Level Security on `drill_stats` is what actually
+// restricts access, not secrecy of this key. Until filled in, the app runs exactly as
+// before: local-only, no auth UI shown.
+const SUPABASE_URL = "https://fuomzaotgansobgcwkcp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1b216YW90Z2Fuc29iZ2N3a2NwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1ODI4NjEsImV4cCI6MjEwMDE1ODg2MX0._MecW52csz0rp9N7L7rWPbjao3hh3ki00Cld3Zdsp4o";
+const SUPABASE_CONFIGURED = SUPABASE_URL !== "YOUR_SUPABASE_URL" && SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY";
+const supabaseClient = SUPABASE_CONFIGURED ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+async function loadFromCloud(userId) {
+  if (!supabaseClient) return null;
+  const { data, error } = await supabaseClient.from("drill_stats").select("data").eq("user_id", userId).maybeSingle();
+  if (error) { console.error("loadFromCloud", error); return null; }
+  return data ? data.data : null;
+}
+
+async function saveToCloud(userId, payload) {
+  if (!supabaseClient) return false;
+  const { error } = await supabaseClient.from("drill_stats").upsert({ user_id: userId, data: payload, updated_at: new Date().toISOString() });
+  if (error) { console.error("saveToCloud", error); return false; }
+  return true;
+}
+
+// ── Shuffle ─────────────────────────────────────────────────────────────────
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildQueue(activeVerbs, activeTenses) {
+  const items = [];
+  activeVerbs.forEach(v => activeTenses.forEach(t => SUBJS.forEach(s => items.push({ verb: v, tense: t, subject: s }))));
+  return shuffle(items);
+}
+
+// Weighted shuffle (Efraimidis-Spirakis): items with more wrong answers / fewer
+// correct ones for their (verb, tense) cell get a higher chance of sorting earlier,
+// without changing how many cards are in the round.
+function buildQueueSmart(activeVerbs, activeTenses, cellStats) {
+  const items = [];
+  activeVerbs.forEach(v => activeTenses.forEach(t => {
+    const cell = getCellStat(cellStats, v, t);
+    const weight = Math.max(1, 1 + cell.wrong * 2 - cell.correct * 0.3);
+    SUBJS.forEach(s => items.push({ verb: v, tense: t, subject: s, weight }));
+  }));
+  return items
+    .map(it => ({ it, key: Math.pow(Math.random(), 1 / it.weight) }))
+    .sort((a, b) => b.key - a.key)
+    .map(({ it }) => ({ verb: it.verb, tense: it.tense, subject: it.subject }));
+}
+
+// Deterministic shuffle keyed by a string seed, so multiple-choice option order
+// stays stable across re-renders of the same card instead of reshuffling on every keystroke.
+function seedHash(seed) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function seededShuffle(arr, seed) {
+  let h = seedHash(seed);
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    h = (h * 1664525 + 1013904223) >>> 0;
+    const j = h % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildChoices(cur) {
+  const answer = VERBS[cur.verb][cur.tense][cur.subject];
+  const seed = `${cur.verb}|${cur.tense}|${cur.subject}`;
+
+  // Same-verb distractors: other conjugations of THIS verb (any tense, any subject) — these
+  // share the stem/spelling pattern, so picking one means actually knowing the subject/tense,
+  // not just recognizing which verb is being conjugated.
+  const sameVerbPool = new Set();
+  TENSES.forEach(t => SUBJS.forEach(s => {
+    const val = VERBS[cur.verb][t][s];
+    if (val !== answer) sameVerbPool.add(val);
+  }));
+
+  // Different-verb distractors: other verbs' forms for the same tense, so they still read
+  // plausibly in the sentence.
+  const otherVerbPool = new Set();
+  VERB_KEYS.forEach(v => {
+    if (v === cur.verb) return;
+    SUBJS.forEach(s => {
+      const val = VERBS[v][cur.tense][s];
+      if (val !== answer) otherVerbPool.add(val);
+    });
+  });
+
+  // How many of the 3 distractors come from the same verb this round — deterministic per
+  // card (stable across re-renders) but varies card to card, so it's sometimes 0 and
+  // sometimes 2-3, not a fixed count every time.
+  const roll = seedHash(seed + "count") % 100;
+  const sameCount = roll < 25 ? 0 : roll < 55 ? 1 : roll < 85 ? 2 : 3;
+
+  const sameDistractors = seededShuffle([...sameVerbPool], seed + "same").slice(0, sameCount);
+  const remaining = 3 - sameDistractors.length;
+  const otherDistractors = seededShuffle([...otherVerbPool], seed + "other").slice(0, remaining);
+
+  return seededShuffle([answer, ...sameDistractors, ...otherDistractors], seed + "x");
+}
+
+// ── Components ───────────────────────────────────────────────────────────────
+
+function Pill({ label, color, small }) {
+  return (
+    <span style={{
+      display: "inline-block",
+      padding: small ? "2px 7px" : "3px 10px",
+      borderRadius: 20,
+      fontSize: small ? 10 : 11,
+      fontWeight: 700,
+      color: "#fff",
+      background: color,
+      lineHeight: 1.5,
+    }}>{label}</span>
+  );
+}
+
+function FilterBtn({ label, color, active, onClick, theme }) {
+  return (
+    <button className="filter-btn" onClick={onClick} style={{
+      borderRadius: 6, padding: "5px 12px", fontSize: 13, cursor: "pointer",
+      border: "none", fontWeight: active ? 700 : 400,
+      background: active ? color : theme.filterInactiveBg,
+      color: active ? "#fff" : theme.filterInactiveText,
+      transition: "all .15s",
+    }}>{label}</button>
+  );
+}
+
+function StatBox({ num, label, theme }) {
+  return (
+    <div style={{ background: theme.statBg, borderRadius: 10, padding: "8px 6px", textAlign: "center", border: `1px solid ${theme.borderColor}` }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color: theme.text }}>{num}</div>
+      <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 2 }}>{label}</div>
+    </div>
+  );
+}
+
+function ConjTable({ verb, theme }) {
+  return (
+    <div style={{ overflowX: "auto", marginTop: 8 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th style={{ padding: "4px 6px", textAlign: "left", color: theme.textMuted, fontWeight: 400, borderBottom: `1px solid ${theme.borderColor}` }}></th>
+            {TENSES.map(t => (
+              <th key={t} style={{ padding: "4px 6px", borderBottom: `1px solid ${theme.borderColor}` }}>
+                <Pill label={TL[t]} color={TC[t]} small />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {SUBJS.map(s => (
+            <tr key={s}>
+              <td style={{ padding: "5px 6px", color: theme.textMuted, fontSize: 11, borderBottom: `1px solid ${theme.rowBorder}`, whiteSpace: "nowrap" }}>{s}</td>
+              {TENSES.map(t => (
+                <td key={t} style={{ padding: "5px 6px", color: theme.text, borderBottom: `1px solid ${theme.rowBorder}` }}>{VERBS[verb][t][s]}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TimerBar({ duration, onExpire, theme }) {
+  const [full, setFull] = useState(true);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setFull(false));
+    const timeout = setTimeout(onExpire, duration * 1000);
+    return () => { cancelAnimationFrame(raf); clearTimeout(timeout); };
+  }, []);
+  return (
+    <div style={{ height: 4, background: theme.borderColor, borderRadius: 2, marginBottom: 10, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: full ? "100%" : "0%", background: theme.noteBorder, borderRadius: 2, transition: `width ${duration}s linear` }} />
+    </div>
+  );
+}
+
+function pctColor(p, theme) {
+  return p >= 80 ? theme.correctBorder : p >= 50 ? theme.noteBorder : theme.wrongBorder;
+}
+
+// Rounded-top bar path — the top (non-baseline) end is rounded, the bottom stays flush to the axis.
+function roundedTopRectPath(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h));
+  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
+}
+
+function SessionChart({ history, theme }) {
+  if (!history || history.length === 0) {
+    return <div style={{ fontSize: 12, color: theme.textMuted, padding: "10px 0" }}>Complete a round to start tracking your trend.</div>;
+  }
+  const recent = history.slice(-14);
+  const w = 320, h = 90, padTop = 14, padBottom = 4, barGap = 4;
+  const barW = (w - barGap * (recent.length - 1)) / recent.length;
+  const avg = Math.round(recent.reduce((s, x) => s + x.pct, 0) / recent.length);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 90, display: "block" }} role="img" aria-label={`Accuracy over the last ${recent.length} sessions, average ${avg} percent`}>
+        <line x1="0" y1={h - padBottom} x2={w} y2={h - padBottom} stroke={theme.borderColor} strokeWidth="1" />
+        {recent.map((s, i) => {
+          const barH = Math.max(2, (s.pct / 100) * (h - padTop - padBottom));
+          const x = i * (barW + barGap);
+          const y = h - padBottom - barH;
+          const color = pctColor(s.pct, theme);
+          return (
+            <g key={i}>
+              <path d={roundedTopRectPath(x, y, barW, barH, 3)} fill={color} />
+              <title>{`${new Date(s.date).toLocaleDateString()} — ${s.pct}% (${s.correct}/${s.correct + s.wrong})`}</title>
+              {recent.length <= 10 && (
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize="8" fill={theme.textMuted}>{s.pct}</text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4, display: "flex", justifyContent: "space-between" }}>
+        <span>Last {recent.length} session{recent.length !== 1 ? "s" : ""}</span>
+        <span>avg {avg}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ─────────────────────────────────────────────────────────────────
+
+function App() {
+  const [saved, setSaved] = useState(null);
+  const [theme, setTheme] = useState("dark");
+  const [mcMode, setMcMode] = useState(false);
+  const [queueMode, setQueueMode] = useState(true);
+  const [timerMode, setTimerMode] = useState(false);
+  const [activeVerbs, setActiveVerbs] = useState(new Set(VERB_KEYS));
+  const [activeTenses, setActiveTenses] = useState(new Set(["present","preterite"]));
+  const [queue, setQueue] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [sessionScore, setSessionScore] = useState(0);
+  const [sessionWrong, setSessionWrong] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [answered, setAnswered] = useState(false);
+  const [inputVal, setInputVal] = useState("");
+  const [result, setResult] = useState(null); // null | "correct" | "wrong"
+  const [showTable, setShowTable] = useState(false);
+  const [showNote, setShowNote] = useState(false);
+  const [panel, setPanel] = useState("drill"); // "drill" | "stats"
+  const [saveMsg, setSaveMsg] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authStatus, setAuthStatus] = useState(SUPABASE_CONFIGURED ? "checking" : "unavailable"); // "unavailable"|"checking"|"signedOut"|"sendingCode"|"codeSent"|"verifying"|"signedIn"
+  const [authEmail, setAuthEmail] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [syncMsg, setSyncMsg] = useState("");
+  const savedRef = useRef(null);
+
+  // Load saved data on mount
+  useEffect(() => {
+    loadFromStorage().then(data => {
+      setSaved(data);
+      setTheme(data.theme || "dark");
+      setMcMode(!!data.mcMode);
+      setQueueMode(data.queueMode !== false);
+      setTimerMode(!!data.timerMode);
+      setActiveVerbs(new Set(data.activeVerbs));
+      setActiveTenses(new Set(data.activeTenses));
+      setLoaded(true);
+    });
+  }, []);
+
+  // Keep body background in sync with theme (avoids overscroll-bounce flashing the wrong color)
+  useEffect(() => {
+    document.body.style.background = THEMES[theme].bg;
+  }, [theme]);
+
+  // Always-current copy of `saved`, readable from async callbacks (e.g. reconcileWithCloud)
+  // without the staleness that a normal closure would have.
+  useEffect(() => { savedRef.current = saved; }, [saved]);
+
+  // Cloud reconciliation on sign-in: if this account already has cloud data (signing in on
+  // a new device), that data wins and replaces local state; otherwise this is the first-ever
+  // sync for the account, so upload whatever's currently on this device to seed it.
+  async function reconcileWithCloud(userId) {
+    const cloudData = await loadFromCloud(userId);
+    if (cloudData) {
+      const merged = mergeSaved(cloudData);
+      setSaved(merged);
+      setTheme(merged.theme || "dark");
+      setMcMode(!!merged.mcMode);
+      setQueueMode(merged.queueMode !== false);
+      setTimerMode(!!merged.timerMode);
+      setActiveVerbs(new Set(merged.activeVerbs));
+      setActiveTenses(new Set(merged.activeTenses));
+      saveToStorage(merged);
+      setSyncMsg("✓ Synced from cloud");
+    } else {
+      const ok = await saveToCloud(userId, savedRef.current || defSaved());
+      setSyncMsg(ok ? "✓ Synced" : "Sync failed");
+    }
+    setTimeout(() => setSyncMsg(""), 2500);
+  }
+
+  // Supabase auth: pick up an existing session on load, and react to sign-in/out events.
+  useEffect(() => {
+    if (!SUPABASE_CONFIGURED) return;
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setUser(data.session.user);
+        setAuthStatus("signedIn");
+        reconcileWithCloud(data.session.user.id);
+      } else {
+        setAuthStatus("signedOut");
+      }
+    });
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        setUser(session.user);
+        setAuthStatus("signedIn");
+        reconcileWithCloud(session.user.id);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        setAuthStatus("signedOut");
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Supabase sometimes returns an error with an empty/unhelpful message (e.g. a bare "{}"
+  // when the server errors before building a proper error body — a broken SMTP config is
+  // the usual cause). Fall back to something a user can actually act on.
+  function describeAuthError(error) {
+    const msg = error?.message?.trim();
+    if (msg && msg !== "{}") return msg;
+    return `Sign-in failed${error?.status ? ` (HTTP ${error.status})` : ""} — check your Supabase Auth logs and SMTP settings.`;
+  }
+
+  async function sendCode() {
+    if (!SUPABASE_CONFIGURED || !authEmail.trim()) return;
+    setAuthStatus("sendingCode");
+    setAuthError("");
+    const { error } = await supabaseClient.auth.signInWithOtp({ email: authEmail.trim() });
+    if (error) { setAuthError(describeAuthError(error)); setAuthStatus("signedOut"); }
+    else { setAuthStatus("codeSent"); }
+  }
+
+  async function verifyCode() {
+    if (!otpCode.trim()) return;
+    setAuthStatus("verifying");
+    setAuthError("");
+    const { error } = await supabaseClient.auth.verifyOtp({ email: authEmail.trim(), token: otpCode.trim(), type: "email" });
+    // On success, the onAuthStateChange listener picks up the new session, sets authStatus
+    // to "signedIn", and runs reconciliation — nothing else to do here.
+    if (error) { setAuthError(describeAuthError(error)); setAuthStatus("codeSent"); }
+  }
+
+  async function signOut() {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    setUser(null);
+    setAuthStatus("signedOut");
+    setOtpCode("");
+    setAuthEmail("");
+  }
+
+  // Rebuild queue when filters or saved data changes
+  useEffect(() => {
+    if (!loaded) return;
+    const q = queueMode
+      ? buildQueueSmart([...activeVerbs], [...activeTenses], saved?.cellStats || {})
+      : buildQueue([...activeVerbs], [...activeTenses]);
+    setQueue(q);
+    setIdx(0);
+    setSessionScore(0);
+    setSessionWrong(0);
+    setStreak(0);
+    setAnswered(false);
+    setInputVal("");
+    setResult(null);
+    setShowTable(false);
+    setShowNote(false);
+  }, [activeVerbs, activeTenses, loaded]);
+
+  const persist = useCallback((newSaved) => {
+    saveToStorage(newSaved);
+    setSaveMsg("✓ Saved");
+    setTimeout(() => setSaveMsg(""), 2000);
+    if (user) {
+      saveToCloud(user.id, newSaved).then(ok => {
+        setSyncMsg(ok ? "✓ Synced" : "Sync failed");
+        setTimeout(() => setSyncMsg(""), 2000);
+      });
+    }
+  }, [user]);
+
+  function toggleVerb(v) {
+    setActiveVerbs(prev => {
+      const next = new Set(prev);
+      if (next.has(v)) { if (next.size > 1) next.delete(v); }
+      else next.add(v);
+      if (saved) {
+        const ns = { ...saved, activeVerbs: [...next] };
+        setSaved(ns); persist(ns);
+      }
+      return next;
+    });
+  }
+
+  function allVerbs() {
+    const next = new Set(VERB_KEYS);
+    setActiveVerbs(next);
+    if (saved) {
+      const ns = { ...saved, activeVerbs: [...next] };
+      setSaved(ns); persist(ns);
+    }
+  }
+
+  function toggleTense(t) {
+    setActiveTenses(prev => {
+      const next = new Set(prev);
+      if (next.has(t)) { if (next.size > 1) next.delete(t); }
+      else next.add(t);
+      if (saved) {
+        const ns = { ...saved, activeTenses: [...next] };
+        setSaved(ns); persist(ns);
+      }
+      return next;
+    });
+  }
+
+  function toggleTheme() {
+    setTheme(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      if (saved) {
+        const ns = { ...saved, theme: next };
+        setSaved(ns); persist(ns);
+      }
+      return next;
+    });
+  }
+
+  function toggleMcMode() {
+    setMcMode(prev => {
+      const next = !prev;
+      if (saved) { const ns = { ...saved, mcMode: next }; setSaved(ns); persist(ns); }
+      return next;
+    });
+  }
+
+  function toggleQueueMode() {
+    setQueueMode(prev => {
+      const next = !prev;
+      if (saved) { const ns = { ...saved, queueMode: next }; setSaved(ns); persist(ns); }
+      return next;
+    });
+  }
+
+  function toggleTimerMode() {
+    setTimerMode(prev => {
+      const next = !prev;
+      if (saved) { const ns = { ...saved, timerMode: next }; setSaved(ns); persist(ns); }
+      return next;
+    });
+  }
+
+  function submitAnswer(rawValue) {
+    if (answered) return;
+    const cur = queue[idx];
+    if (!cur) return;
+    const answer = VERBS[cur.verb][cur.tense][cur.subject];
+    const norm = s => s.toLowerCase().replace(/\s+/g, "");
+    const ok = norm(rawValue) === norm(answer);
+    setInputVal(rawValue);
+    setAnswered(true);
+    setResult(ok ? "correct" : "wrong");
+
+    setSaved(prev => {
+      if (!prev) return prev;
+      const vs = { ...prev.verbStats, [cur.verb]: { correct: prev.verbStats[cur.verb].correct + (ok ? 1 : 0), wrong: prev.verbStats[cur.verb].wrong + (ok ? 0 : 1) } };
+      const ck = cellKey(cur.verb, cur.tense);
+      const prevCell = getCellStat(prev.cellStats, cur.verb, cur.tense);
+      const cs = { ...prev.cellStats, [ck]: { correct: prevCell.correct + (ok ? 1 : 0), wrong: prevCell.wrong + (ok ? 0 : 1) } };
+      const newStreak = ok ? streak + 1 : 0;
+      const ns = { ...prev, allTimeCorrect: prev.allTimeCorrect + (ok ? 1 : 0), allTimeWrong: prev.allTimeWrong + (ok ? 0 : 1), bestStreak: Math.max(prev.bestStreak, newStreak), verbStats: vs, cellStats: cs };
+      persist(ns);
+      return ns;
+    });
+    if (ok) { setSessionScore(s => s + 1); setStreak(s => s + 1); }
+    else { setSessionWrong(s => s + 1); setStreak(0); }
+    setIdx(i => i + 1);
+  }
+
+  function checkAnswer() {
+    if (answered || !inputVal.trim()) return;
+    submitAnswer(inputVal);
+  }
+
+  function chooseAnswer(choice) {
+    submitAnswer(choice);
+  }
+
+  function nextCard() {
+    setAnswered(false);
+    setInputVal("");
+    setResult(null);
+    setShowTable(false);
+    setShowNote(false);
+  }
+
+  function newRound() {
+    const q = queueMode
+      ? buildQueueSmart([...activeVerbs], [...activeTenses], saved?.cellStats || {})
+      : buildQueue([...activeVerbs], [...activeTenses]);
+    setQueue(q);
+    setIdx(0);
+    setSessionScore(0);
+    setSessionWrong(0);
+    setStreak(0);
+    setAnswered(false);
+    setInputVal("");
+    setResult(null);
+    setShowTable(false);
+    setShowNote(false);
+  }
+
+  function finishSession() {
+    setSaved(prev => {
+      if (!prev) return prev;
+      const totalA = sessionScore + sessionWrong;
+      const entry = {
+        date: new Date().toISOString(),
+        correct: sessionScore, wrong: sessionWrong,
+        pct: totalA ? Math.round(sessionScore / totalA * 100) : 0,
+        verbs: [...activeVerbs], tenses: [...activeTenses],
+      };
+      const history = [...(prev.sessionHistory || []), entry].slice(-50);
+      const ns = { ...prev, sessions: prev.sessions + 1, sessionHistory: history };
+      persist(ns);
+      return ns;
+    });
+  }
+
+  const cur = queue[idx - (answered ? 1 : 0)];
+  const correctAnswer = cur ? VERBS[cur.verb][cur.tense][cur.subject] : null;
+  const choices = (cur && mcMode) ? buildChoices(cur) : [];
+  const isComplete = idx >= queue.length && answered;
+  const pct = queue.length ? Math.round((Math.min(idx, queue.length) / queue.length) * 100) : 0;
+  const totalAnswered = sessionScore + sessionWrong;
+  const sessionPct = totalAnswered ? Math.round(sessionScore / totalAnswered * 100) : 0;
+  const allTimePct = saved && (saved.allTimeCorrect + saved.allTimeWrong) ? Math.round(saved.allTimeCorrect / (saved.allTimeCorrect + saved.allTimeWrong) * 100) : 0;
+
+  const t = THEMES[theme];
+  const cardBg = t.cardBg;
+  const border = `1px solid ${t.borderColor}`;
+
+  if (!loaded) return (
+    <div style={{ background: t.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: t.textMuted, fontFamily: "-apple-system, sans-serif" }}>
+      Cargando…
+    </div>
+  );
+
+  return (
+    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 15 }}>
+
+      {/* Header */}
+      <div style={{ background: t.headerBg, borderBottom: border, padding: "14px 16px", position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: -0.3 }}>
+          Spanish <span style={{ color: t.accent }}>Verb</span> Drill
+        </div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <button onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{
+            width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", fontSize: 14,
+            background: t.tabInactiveBg, color: t.tabInactiveText, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 2,
+          }} className="theme-toggle">{theme === "dark" ? "☀️" : "🌙"}</button>
+          {["drill","stats"].map((p, i) => (
+            <button key={p} className="panel-tab" onClick={() => setPanel(p)} style={{
+              padding: "5px 13px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+              border: "none", cursor: "pointer",
+              background: panel === p ? t.accent : t.tabInactiveBg,
+              color: panel === p ? "#fff" : t.tabInactiveText,
+            }}>{i === 0 ? "Drill" : "Stats"}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 14px 32px", maxWidth: 620, margin: "0 auto" }}>
+
+        {/* ── Auth bar ── */}
+        {SUPABASE_CONFIGURED && (
+          <div style={{ background: t.cardBg, borderRadius: 10, padding: "10px 12px", marginBottom: 10, border, fontSize: 12 }}>
+            {authStatus === "signedIn" ? (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                <span style={{ color: t.textMuted }}>Signed in as <strong style={{ color: t.text }}>{user?.email}</strong>{syncMsg && ` · ${syncMsg}`}</span>
+                <button onClick={signOut} style={{ background: "transparent", border: `1px solid ${t.actionBorder}`, color: t.textMuted, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>Sign out</button>
+              </div>
+            ) : (authStatus === "codeSent" || authStatus === "verifying") ? (
+              <div>
+                <div style={{ color: t.textMuted, marginBottom: 6 }}>✉️ Enter the code sent to <strong style={{ color: t.text }}>{authEmail}</strong></div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && verifyCode()}
+                    placeholder="6-digit code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    disabled={authStatus === "verifying"}
+                    style={{ flex: 1, minWidth: 100, fontSize: 12, padding: "6px 8px", borderRadius: 8, border: `1px solid ${t.inputBorder}`, background: t.inputBg, color: t.text, outline: "none" }}
+                  />
+                  <button onClick={verifyCode} disabled={authStatus === "verifying" || !otpCode.trim()} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    {authStatus === "verifying" ? "Verifying…" : "Verify code"}
+                  </button>
+                  <button onClick={() => { setAuthStatus("signedOut"); setOtpCode(""); setAuthError(""); }} style={{ background: "transparent", border: "none", color: t.linkColor, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>use different email</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  value={authEmail}
+                  onChange={e => setAuthEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendCode()}
+                  placeholder="email for cross-device sync…"
+                  disabled={authStatus === "sendingCode"}
+                  style={{ flex: 1, minWidth: 160, fontSize: 12, padding: "6px 8px", borderRadius: 8, border: `1px solid ${t.inputBorder}`, background: t.inputBg, color: t.text, outline: "none" }}
+                />
+                <button onClick={sendCode} disabled={authStatus === "sendingCode" || !authEmail.trim()} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  {authStatus === "sendingCode" ? "Sending…" : "Send code"}
+                </button>
+              </div>
+            )}
+            {authError && <div style={{ color: t.wrongText, marginTop: 6 }}>{authError}</div>}
+          </div>
+        )}
+
+        {/* ── DRILL PANEL ── */}
+        {panel === "drill" && (
+          <>
+            {/* Verb filters */}
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Verbs</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+              {VERB_KEYS.map(v => <FilterBtn key={v} label={v} color={VC[v]} active={activeVerbs.has(v)} onClick={() => toggleVerb(v)} theme={t} />)}
+              <button onClick={allVerbs} style={{ borderRadius: 6, padding: "5px 10px", fontSize: 11, cursor: "pointer", border: `1px solid ${t.inputBorder}`, background: "transparent", color: t.textMuted }}>all</button>
+            </div>
+
+            {/* Tense filters */}
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Tenses</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+              {TENSES.map(ts => <FilterBtn key={ts} label={TL[ts]} color={TC[ts]} active={activeTenses.has(ts)} onClick={() => toggleTense(ts)} theme={t} />)}
+            </div>
+
+            {/* Mode toggles */}
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Mode</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+              <FilterBtn label={mcMode ? "Multiple choice" : "Type answer"} color={t.accent} active={mcMode} onClick={toggleMcMode} theme={t} />
+              <FilterBtn label={queueMode ? "Smart queue" : "Random queue"} color={t.accent} active={queueMode} onClick={toggleQueueMode} theme={t} />
+              <FilterBtn label={timerMode ? `Timer: ${TIMER_SECONDS}s` : "Timer: off"} color={t.accent} active={timerMode} onClick={toggleTimerMode} theme={t} />
+            </div>
+
+            {/* Save indicator + welcome banner */}
+            <div style={{ fontSize: 11, color: t.textMuted, textAlign: "right", minHeight: 16, marginBottom: 4 }}>{saveMsg}</div>
+            {saved && (saved.allTimeCorrect + saved.allTimeWrong) > 0 && (
+              <div style={{ background: t.cardBg, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: t.textMuted, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center", border }}>
+                <span>Welcome back! <strong style={{ color: t.text }}>{allTimePct}%</strong> all-time · {saved.sessions} session{saved.sessions !== 1 ? "s" : ""}</span>
+                {saved.bestStreak > 0 && <span style={{ whiteSpace: "nowrap" }}>Best: {saved.bestStreak} 🔥</span>}
+              </div>
+            )}
+
+            {/* Progress bar */}
+            <div style={{ height: 3, background: t.borderColor, borderRadius: 2, marginBottom: 10, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: t.accent, borderRadius: 2, transition: "width .4s" }} />
+            </div>
+
+            {/* Session stats */}
+            <div className="stat-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6, marginBottom: 12 }}>
+              <StatBox num={sessionScore} label="correct" theme={t} />
+              <StatBox num={sessionWrong} label="wrong" theme={t} />
+              <StatBox num={streak} label="streak 🔥" theme={t} />
+              <StatBox num={Math.max(0, queue.length - idx)} label="left" theme={t} />
+            </div>
+
+            {/* ── Card ── */}
+            {isComplete ? (
+              <div style={{ background: cardBg, borderRadius: 14, padding: "2rem 1.25rem", border, textAlign: "center" }} ref={() => finishSession()}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>{sessionPct >= 80 ? "🎉" : sessionPct >= 60 ? "💪" : "📚"}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Round complete!</div>
+                <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 4 }}>{sessionScore}/{totalAnswered} correct this session ({sessionPct}%)</div>
+                {saved && <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>All-time: {saved.allTimeCorrect} correct / {saved.allTimeWrong} wrong</div>}
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                  <button onClick={newRound} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>New round</button>
+                  <button onClick={() => setPanel("stats")} style={{ background: t.statBg, color: t.outlineText, border, borderRadius: 10, padding: "10px 16px", fontSize: 13, cursor: "pointer" }}>View stats</button>
+                </div>
+              </div>
+            ) : cur ? (
+              <div style={{ background: cardBg, borderRadius: 14, padding: "1.25rem", border }}>
+                {/* Verb header */}
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 26, fontWeight: 800 }}>{cur.verb}</span>
+                  <Pill label={TL[cur.tense]} color={TC[cur.tense]} />
+                </div>
+                <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>{VERBS[cur.verb].en}</div>
+
+                {/* Prompt */}
+                <div style={{ fontSize: 14, color: t.textMuted, lineHeight: 1.6, marginBottom: 12 }}>
+                  {(PROMPTS[cur.verb]?.[cur.tense]?.[cur.subject] || `Conjugate ${cur.verb} for ${cur.subject}`).split("_____").map((part, i, arr) => (
+                    <span key={i}>{part}{i < arr.length - 1 && <strong style={{ color: t.text }}>_____</strong>}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>
+                  Subject: <strong style={{ color: t.text, fontSize: 14 }}>{cur.subject}</strong>
+                </div>
+
+                {timerMode && !answered && (
+                  <TimerBar key={idx} duration={TIMER_SECONDS} onExpire={() => submitAnswer("")} theme={t} />
+                )}
+
+                {/* Input */}
+                {mcMode ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    {choices.map(choice => {
+                      const isCorrectChoice = choice === correctAnswer;
+                      const isPicked = answered && inputVal === choice;
+                      let bg = t.inputBg, border = t.inputBorder;
+                      if (answered && isCorrectChoice) { bg = t.correctBg; border = t.correctBorder; }
+                      else if (isPicked) { bg = t.wrongBg; border = t.wrongBorder; }
+                      return (
+                        <button key={choice} disabled={answered} onClick={() => chooseAnswer(choice)} className="action-btn" style={{
+                          padding: "12px 10px", borderRadius: 10, fontSize: 16, fontWeight: 600,
+                          cursor: answered ? "default" : "pointer",
+                          border: `1.5px solid ${border}`, background: bg, color: t.text,
+                        }}>{choice}</button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      value={inputVal}
+                      onChange={e => setInputVal(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && checkAnswer()}
+                      disabled={answered}
+                      autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                      placeholder="type conjugation…"
+                      style={{
+                        flex: 1, fontSize: 17, padding: "10px 12px", borderRadius: 10,
+                        border: `1.5px solid ${result === "correct" ? t.correctBorder : result === "wrong" ? t.wrongBorder : t.inputBorder}`,
+                        background: result === "correct" ? t.correctBg : result === "wrong" ? t.wrongBg : t.inputBg,
+                        color: t.text, outline: "none",
+                      }}
+                    />
+                    <button onClick={checkAnswer} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Check</button>
+                  </div>
+                )}
+
+                {/* Feedback */}
+                {answered && (
+                  <div style={{
+                    borderRadius: 10, padding: "10px 12px", fontSize: 13, lineHeight: 1.6, marginBottom: 8,
+                    background: result === "correct" ? t.correctFeedbackBg : t.wrongFeedbackBg,
+                    borderLeft: `3px solid ${result === "correct" ? t.correctBorder : t.wrongBorder}`,
+                    color: result === "correct" ? t.correctText : t.wrongText,
+                  }}>
+                    {result === "correct"
+                      ? <>✓ ¡Correcto! <strong style={{ color: t.text }}>{VERBS[cur.verb][cur.tense][cur.subject]}</strong></>
+                      : <>✗ Answer: <strong style={{ color: t.text }}>{VERBS[cur.verb][cur.tense][cur.subject]}</strong> — {inputVal ? `you ${mcMode ? "picked" : "wrote"} "${inputVal}"` : "time's up!"}</>
+                    }
+                  </div>
+                )}
+
+                {/* Pattern note */}
+                {showNote && (
+                  <div style={{ background: t.noteBg, borderLeft: `3px solid ${t.noteBorder}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: t.noteText, lineHeight: 1.6, marginBottom: 8 }}>
+                    {VERBS[cur.verb].note}
+                  </div>
+                )}
+
+                {/* Table toggle */}
+                <button onClick={() => setShowTable(v => !v)} style={{ background: "none", border: "none", color: t.linkColor, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: "4px 0", display: "block", marginBottom: 4 }}>
+                  {showTable ? "hide table ▴" : "see conjugation table ▾"}
+                </button>
+                {showTable && <ConjTable verb={cur.verb} theme={t} />}
+
+                {/* Action row */}
+                {answered && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                    <button className="action-btn" onClick={nextCard} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Next →</button>
+                    <button className="action-btn" onClick={() => setShowNote(v => !v)} style={{ background: "transparent", border: `1.5px solid ${t.actionBorder}`, color: t.textMuted, borderRadius: 10, padding: "10px 14px", fontSize: 13, cursor: "pointer" }}>
+                      {showNote ? "hide note" : "why?"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </>
+        )}
+
+        {/* ── STATS PANEL ── */}
+        {panel === "stats" && saved && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: t.textMuted, marginBottom: 8 }}>Accuracy by verb</div>
+            {VERB_KEYS.map(v => {
+              const s = saved.verbStats[v];
+              const tot = s.correct + s.wrong;
+              const p = tot ? Math.round(s.correct / tot * 100) : 0;
+              const barColor = pctColor(p, t);
+              return (
+                <div key={v} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: `1px solid ${t.rowBorder}` }}>
+                  <span style={{ width: 62, fontSize: 13, fontWeight: 700, color: VC[v], flexShrink: 0 }}>{v}</span>
+                  <div style={{ flex: 1, height: 6, background: t.borderColor, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${tot ? p : 0}%`, background: barColor, borderRadius: 3, transition: "width .5s" }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: t.textMuted, width: 34, textAlign: "right", flexShrink: 0 }}>{tot ? `${p}%` : "—"}</span>
+                  <span style={{ fontSize: 11, color: t.textMuted, width: 48, textAlign: "right", flexShrink: 0 }}>{s.correct}/{tot}</span>
+                </div>
+              );
+            })}
+
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: t.textMuted, marginTop: 20, marginBottom: 8 }}>All-time</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 6 }}>
+              <StatBox num={saved.allTimeCorrect} label="correct" theme={t} />
+              <StatBox num={saved.allTimeWrong} label="wrong" theme={t} />
+              <StatBox num={saved.sessions} label="sessions" theme={t} />
+              <StatBox num={saved.bestStreak} label="best streak 🔥" theme={t} />
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: t.textMuted, marginTop: 20, marginBottom: 8 }}>Session trend</div>
+            <div style={{ background: t.cardBg, borderRadius: 10, padding: "10px 12px", border }}>
+              <SessionChart history={saved.sessionHistory} theme={t} />
+            </div>
+
+            <button onClick={() => {
+              if (confirm("Reset all stats? This cannot be undone.")) {
+                const ns = { ...defSaved(), theme, mcMode, queueMode, timerMode };
+                setSaved(ns); setActiveVerbs(new Set(ns.activeVerbs)); setActiveTenses(new Set(ns.activeTenses));
+                saveToStorage(ns); setPanel("drill");
+              }
+            }} style={{ marginTop: 16, width: "100%", background: "none", border: `1px solid ${t.resetBorder}`, color: t.textMuted, borderRadius: 10, padding: "9px", fontSize: 13, cursor: "pointer" }}>
+              Reset all stats
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
