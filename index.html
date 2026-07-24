@@ -716,6 +716,14 @@ function App() {
   const correctAnswer = cur ? VERBS[cur.verb][cur.tense][cur.subject] : null;
   const choices = (cur && mcMode) ? buildChoices(cur) : [];
   const isComplete = idx >= queue.length && answered;
+
+  // Runs finishSession exactly once per completed round — isComplete only flips
+  // false→true once per round, so this effect only fires on that transition,
+  // unlike the old ref-callback pattern which re-fired on every re-render.
+  useEffect(() => {
+    if (isComplete) finishSession();
+  }, [isComplete]);
+
   const pct = queue.length ? Math.round((Math.min(idx, queue.length) / queue.length) * 100) : 0;
   const totalAnswered = sessionScore + sessionWrong;
   const sessionPct = totalAnswered ? Math.round(sessionScore / totalAnswered * 100) : 0;
@@ -856,7 +864,7 @@ function App() {
 
             {/* ── Card ── */}
             {isComplete ? (
-              <div style={{ background: cardBg, borderRadius: 14, padding: "2rem 1.25rem", border, textAlign: "center" }} ref={() => finishSession()}>
+              <div style={{ background: cardBg, borderRadius: 14, padding: "2rem 1.25rem", border, textAlign: "center" }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>{sessionPct >= 80 ? "🎉" : sessionPct >= 60 ? "💪" : "📚"}</div>
                 <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6 }}>Round complete!</div>
                 <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 4 }}>{sessionScore}/{totalAnswered} correct this session ({sessionPct}%)</div>
