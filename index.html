@@ -20,6 +20,7 @@
   @media (max-width: 380px) {
     .stat-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
   }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 </style>
 </head>
 <body>
@@ -116,33 +117,19 @@ const PROMPTS = {
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
-const THEMES = {
-  dark: {
-    bg: "#0f0f13", headerBg: "#1a1a22", text: "#f0f0f4", textMuted: "#8888a0",
-    borderColor: "rgba(255,255,255,0.08)", cardBg: "rgba(255,255,255,0.04)",
-    statBg: "rgba(255,255,255,0.05)", inputBg: "rgba(255,255,255,0.05)", inputBorder: "rgba(255,255,255,0.15)",
-    filterInactiveBg: "rgba(80,80,100,0.3)", filterInactiveText: "#888",
-    tabInactiveBg: "rgba(80,80,100,0.4)", tabInactiveText: "#888",
-    actionBorder: "rgba(255,255,255,0.15)", resetBorder: "rgba(255,255,255,0.12)", rowBorder: "rgba(255,255,255,0.06)",
-    accent: "#1D9E75",
-    correctBg: "rgba(34,197,94,0.08)", correctBorder: "#22c55e", correctFeedbackBg: "rgba(34,197,94,0.12)", correctText: "#86efac",
-    wrongBg: "rgba(239,68,68,0.08)", wrongBorder: "#ef4444", wrongFeedbackBg: "rgba(239,68,68,0.12)", wrongText: "#fca5a5",
-    noteBg: "rgba(245,158,11,0.08)", noteBorder: "#f59e0b", noteText: "#fcd34d",
-    linkColor: "#818cf8", outlineText: "#ccc",
-  },
-  light: {
-    bg: "#f4f4f7", headerBg: "#ffffff", text: "#1c1c26", textMuted: "#6b6b80",
-    borderColor: "rgba(0,0,0,0.09)", cardBg: "#ffffff",
-    statBg: "rgba(0,0,0,0.03)", inputBg: "#ffffff", inputBorder: "rgba(0,0,0,0.15)",
-    filterInactiveBg: "rgba(0,0,0,0.06)", filterInactiveText: "#6b6b80",
-    tabInactiveBg: "rgba(0,0,0,0.08)", tabInactiveText: "#6b6b80",
-    actionBorder: "rgba(0,0,0,0.15)", resetBorder: "rgba(0,0,0,0.14)", rowBorder: "rgba(0,0,0,0.08)",
-    accent: "#1D9E75",
-    correctBg: "rgba(34,197,94,0.08)", correctBorder: "#16a34a", correctFeedbackBg: "rgba(34,197,94,0.1)", correctText: "#15803d",
-    wrongBg: "rgba(239,68,68,0.07)", wrongBorder: "#dc2626", wrongFeedbackBg: "rgba(239,68,68,0.08)", wrongText: "#b91c1c",
-    noteBg: "rgba(245,158,11,0.1)", noteBorder: "#d97706", noteText: "#92400e",
-    linkColor: "#4f46e5", outlineText: "#444",
-  },
+// Nocturne design-system tokens — single dark theme (see design system README).
+const T = {
+  bg: "#161826", headerBg: "#161826", text: "#e9e9ed", textMuted: "#9397ab",
+  borderColor: "#3f424d", cardBg: "#232532",
+  statBg: "#1c1e2a", inputBg: "#1c1e2a", inputBorder: "#595d6c",
+  filterInactiveBg: "transparent", filterInactiveText: "#cfd3e5",
+  tabInactiveBg: "transparent", tabInactiveText: "#cfd3e5",
+  actionBorder: "#595d6c", resetBorder: "#595d6c", rowBorder: "#3f424d",
+  accent: "#9184d9",
+  correctBg: "rgba(34,197,94,0.08)", correctBorder: "#22c55e", correctFeedbackBg: "rgba(34,197,94,0.12)", correctText: "#86efac",
+  wrongBg: "rgba(239,68,68,0.08)", wrongBorder: "#ef4444", wrongFeedbackBg: "rgba(239,68,68,0.12)", wrongText: "#fca5a5",
+  noteBg: "#423a6a", noteBorder: "#9184d9", noteText: "#d2cefd",
+  linkColor: "#d2cefd", outlineText: "#cfd3e5",
 };
 
 // ── Storage helpers (localStorage) ───────────────────────────────────────────
@@ -426,7 +413,7 @@ function SessionChart({ history, theme }) {
 
 function App() {
   const [saved, setSaved] = useState(null);
-  const [theme, setTheme] = useState("dark");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [mcMode, setMcMode] = useState(false);
   const [queueMode, setQueueMode] = useState(true);
   const [timerMode, setTimerMode] = useState(false);
@@ -457,7 +444,6 @@ function App() {
   useEffect(() => {
     loadFromStorage().then(data => {
       setSaved(data);
-      setTheme(data.theme || "dark");
       setMcMode(!!data.mcMode);
       setQueueMode(data.queueMode !== false);
       setTimerMode(!!data.timerMode);
@@ -467,10 +453,10 @@ function App() {
     });
   }, []);
 
-  // Keep body background in sync with theme (avoids overscroll-bounce flashing the wrong color)
+  // Keep body background in sync with the theme (avoids overscroll-bounce flashing the wrong color)
   useEffect(() => {
-    document.body.style.background = THEMES[theme].bg;
-  }, [theme]);
+    document.body.style.background = T.bg;
+  }, []);
 
   // Always-current copy of `saved`, readable from async callbacks (e.g. reconcileWithCloud)
   // without the staleness that a normal closure would have.
@@ -484,7 +470,6 @@ function App() {
     if (cloudData) {
       const merged = mergeSaved(cloudData);
       setSaved(merged);
-      setTheme(merged.theme || "dark");
       setMcMode(!!merged.mcMode);
       setQueueMode(merged.queueMode !== false);
       setTimerMode(!!merged.timerMode);
@@ -626,17 +611,6 @@ function App() {
     });
   }
 
-  function toggleTheme() {
-    setTheme(prev => {
-      const next = prev === "dark" ? "light" : "dark";
-      if (saved) {
-        const ns = { ...saved, theme: next };
-        setSaved(ns); persist(ns);
-      }
-      return next;
-    });
-  }
-
   function toggleMcMode() {
     setMcMode(prev => {
       const next = !prev;
@@ -747,29 +721,31 @@ function App() {
   const sessionPct = totalAnswered ? Math.round(sessionScore / totalAnswered * 100) : 0;
   const allTimePct = saved && (saved.allTimeCorrect + saved.allTimeWrong) ? Math.round(saved.allTimeCorrect / (saved.allTimeCorrect + saved.allTimeWrong) * 100) : 0;
 
-  const t = THEMES[theme];
+  const t = T;
   const cardBg = t.cardBg;
   const border = `1px solid ${t.borderColor}`;
 
   if (!loaded) return (
-    <div style={{ background: t.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: t.textMuted, fontFamily: "-apple-system, sans-serif" }}>
+    <div style={{ background: t.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: t.textMuted, fontFamily: "'Inter', -apple-system, sans-serif" }}>
       Cargando…
     </div>
   );
 
   return (
-    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 15 }}>
+    <div style={{ background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontSize: 15 }}>
 
       {/* Header */}
       <div style={{ background: t.headerBg, borderBottom: border, padding: "14px 16px", position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: -0.3 }}>
+        <div style={{ fontWeight: 500, fontSize: 17, letterSpacing: -0.3 }}>
           Spanish <span style={{ color: t.accent }}>Verb</span> Drill
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <button onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{
-            width: 30, height: 30, borderRadius: "50%", border: "none", cursor: "pointer", fontSize: 14,
-            background: t.tabInactiveBg, color: t.tabInactiveText, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 2,
-          }} className="theme-toggle">{theme === "dark" ? "☀️" : "🌙"}</button>
+          <button onClick={() => setFiltersOpen(v => !v)} title="Filters" aria-label="Toggle filters" style={{
+            width: 30, height: 30, borderRadius: "50%", border: `1px solid ${t.actionBorder}`, cursor: "pointer", fontSize: 14,
+            background: filtersOpen ? t.accent : "transparent", color: filtersOpen ? "#fff" : t.tabInactiveText, display: "flex", alignItems: "center", justifyContent: "center", marginRight: 2,
+          }} className="theme-toggle">
+            <svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor"><path d="M40,64H73a32,32,0,0,0,62,0h81a8,8,0,0,0,0-16H135a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16Zm168,60H183a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h81a32,32,0,0,0,62,0h33a8,8,0,0,0,0-16Zm0,76H175a32,32,0,0,0-62,0H40a8,8,0,0,0,0,16h73a32,32,0,0,0,62,0h33a8,8,0,0,0,0-16Z"/></svg>
+          </button>
           {["drill","stats"].map((p, i) => (
             <button key={p} className="panel-tab" onClick={() => setPanel(p)} style={{
               padding: "5px 13px", borderRadius: 20, fontSize: 12, fontWeight: 600,
@@ -789,7 +765,7 @@ function App() {
             {authStatus === "signedIn" ? (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                 <span style={{ color: t.textMuted }}>Signed in as <strong style={{ color: t.text }}>{user?.email}</strong>{syncMsg && ` · ${syncMsg}`}</span>
-                <button onClick={signOut} style={{ background: "transparent", border: `1px solid ${t.actionBorder}`, color: t.textMuted, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>Sign out</button>
+                <button onClick={signOut} style={{ background: "transparent", border: `1px solid ${t.accent}`, color: t.accent, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>Sign out</button>
               </div>
             ) : (authStatus === "codeSent" || authStatus === "verifying") ? (
               <div>
@@ -833,26 +809,28 @@ function App() {
         {/* ── DRILL PANEL ── */}
         {panel === "drill" && (
           <>
-            {/* Verb filters */}
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Verbs</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
-              {VERB_KEYS.map(v => <FilterBtn key={v} label={v} color={VC[v]} active={activeVerbs.has(v)} onClick={() => toggleVerb(v)} theme={t} />)}
-              <button onClick={allVerbs} style={{ borderRadius: 6, padding: "5px 10px", fontSize: 11, cursor: "pointer", border: `1px solid ${t.inputBorder}`, background: "transparent", color: t.textMuted }}>all</button>
-            </div>
+            {/* Filters drawer */}
+            {filtersOpen && (
+              <div style={{ background: t.cardBg, border, borderRadius: 14, padding: "14px", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Verbs</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
+                  {VERB_KEYS.map(v => <FilterBtn key={v} label={v} color={VC[v]} active={activeVerbs.has(v)} onClick={() => toggleVerb(v)} theme={t} />)}
+                  <button onClick={allVerbs} style={{ borderRadius: 6, padding: "5px 10px", fontSize: 11, cursor: "pointer", border: `1px solid ${t.inputBorder}`, background: "transparent", color: t.textMuted }}>all</button>
+                </div>
 
-            {/* Tense filters */}
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Tenses</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-              {TENSES.map(ts => <FilterBtn key={ts} label={TL[ts]} color={TC[ts]} active={activeTenses.has(ts)} onClick={() => toggleTense(ts)} theme={t} />)}
-            </div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Tenses</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
+                  {TENSES.map(ts => <FilterBtn key={ts} label={TL[ts]} color={TC[ts]} active={activeTenses.has(ts)} onClick={() => toggleTense(ts)} theme={t} />)}
+                </div>
 
-            {/* Mode toggles */}
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Mode</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-              <FilterBtn label={mcMode ? "Multiple choice" : "Type answer"} color={t.accent} active={mcMode} onClick={toggleMcMode} theme={t} />
-              <FilterBtn label={queueMode ? "Smart queue" : "Random queue"} color={t.accent} active={queueMode} onClick={toggleQueueMode} theme={t} />
-              <FilterBtn label={timerMode ? `Timer: ${TIMER_SECONDS}s` : "Timer: off"} color={t.accent} active={timerMode} onClick={toggleTimerMode} theme={t} />
-            </div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: t.textMuted, marginBottom: 6 }}>Mode</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  <FilterBtn label={mcMode ? "Multiple choice" : "Type answer"} color={t.accent} active={mcMode} onClick={toggleMcMode} theme={t} />
+                  <FilterBtn label={queueMode ? "Smart queue" : "Random queue"} color={t.accent} active={queueMode} onClick={toggleQueueMode} theme={t} />
+                  <FilterBtn label={timerMode ? `Timer: ${TIMER_SECONDS}s` : "Timer: off"} color={t.accent} active={timerMode} onClick={toggleTimerMode} theme={t} />
+                </div>
+              </div>
+            )}
 
             {/* Save indicator + welcome banner */}
             <div style={{ fontSize: 11, color: t.textMuted, textAlign: "right", minHeight: 16, marginBottom: 4 }}>{saveMsg}</div>
@@ -880,7 +858,7 @@ function App() {
             {isComplete ? (
               <div style={{ background: cardBg, borderRadius: 14, padding: "2rem 1.25rem", border, textAlign: "center" }} ref={() => finishSession()}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>{sessionPct >= 80 ? "🎉" : sessionPct >= 60 ? "💪" : "📚"}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Round complete!</div>
+                <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6 }}>Round complete!</div>
                 <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 4 }}>{sessionScore}/{totalAnswered} correct this session ({sessionPct}%)</div>
                 {saved && <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>All-time: {saved.allTimeCorrect} correct / {saved.allTimeWrong} wrong</div>}
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
@@ -892,7 +870,7 @@ function App() {
               <div style={{ background: cardBg, borderRadius: 14, padding: "1.25rem", border }}>
                 {/* Verb header */}
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 26, fontWeight: 800 }}>{cur.verb}</span>
+                  <span style={{ fontSize: 26, fontWeight: 500 }}>{cur.verb}</span>
                   <Pill label={TL[cur.tense]} color={TC[cur.tense]} />
                 </div>
                 <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>{VERBS[cur.verb].en}</div>
@@ -1027,7 +1005,7 @@ function App() {
 
             <button onClick={() => {
               if (confirm("Reset all stats? This cannot be undone.")) {
-                const ns = { ...defSaved(), theme, mcMode, queueMode, timerMode };
+                const ns = { ...defSaved(), mcMode, queueMode, timerMode };
                 setSaved(ns); setActiveVerbs(new Set(ns.activeVerbs)); setActiveTenses(new Set(ns.activeTenses));
                 saveToStorage(ns); setPanel("drill");
               }
