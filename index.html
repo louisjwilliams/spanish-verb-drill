@@ -367,6 +367,27 @@ function pctColor(p, theme) {
   return p >= 80 ? theme.correctBorder : p >= 50 ? theme.noteBorder : theme.wrongBorder;
 }
 
+function ProgressRing({ pct, theme, size = 96, stroke = 10 }) {
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - pct / 100);
+  const color = pctColor(pct, theme);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${pct}% correct`}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={theme.borderColor} strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={{ transition: "stroke-dashoffset .6s ease" }}
+      />
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fontSize={size * 0.26} fontWeight="700" fill={theme.text}>
+        {pct}%
+      </text>
+    </svg>
+  );
+}
+
 // Rounded-top bar path — the top (non-baseline) end is rounded, the bottom stays flush to the axis.
 function roundedTopRectPath(x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h));
@@ -865,7 +886,9 @@ function App() {
             {/* ── Card ── */}
             {isComplete ? (
               <div style={{ background: cardBg, borderRadius: 14, padding: "2rem 1.25rem", border, textAlign: "center" }}>
-                <div style={{ fontSize: 40, marginBottom: 10 }}>{sessionPct >= 80 ? "🎉" : sessionPct >= 60 ? "💪" : "📚"}</div>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                  <ProgressRing pct={sessionPct} theme={t} />
+                </div>
                 <div style={{ fontSize: 20, fontWeight: 500, marginBottom: 6 }}>Round complete!</div>
                 <div style={{ fontSize: 14, color: t.textMuted, marginBottom: 4 }}>{sessionScore}/{totalAnswered} correct this session ({sessionPct}%)</div>
                 {saved && <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>All-time: {saved.allTimeCorrect} correct / {saved.allTimeWrong} wrong</div>}
